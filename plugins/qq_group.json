@@ -1,0 +1,9 @@
+{
+  "name": "QQ 群",
+  "description": "QQ 群消息特征",
+  "triggers": [
+    {"keyword": "[CQ:", "field": "is_rich_message"},
+    {"keyword": "!", "field": "boost_priority", "value": 0.5},
+    {"pattern": "\\d{1,2}月\\d{1,2}日", "field": "deadline", "boost_priority": 1}
+  ]
+}

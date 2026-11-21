@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>TaskPane · 任务面板</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #f5f5f7;
+    color: #1d1d1f;
+    padding: 16px;
+    line-height: 1.5;
+  }
+  h1 {
+    font-size: 18px;
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  h1 .badge {
+    font-size: 11px;
+    background: #0071e3;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: normal;
+  }
+  textarea {
+    width: 100%;
+    min-height: 80px;
+    padding: 10px;
+    border: 1px solid #d2d2d7;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 13px;
+    resize: vertical;
+    margin-bottom: 8px;
+  }
+  button {
+    background: #0071e3;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    margin-right: 6px;
+    transition: background 0.15s;
+  }
+  button:hover { background: #005bb5; }
+  button.secondary {
+    background: #e8e8ed;
+    color: #1d1d1f;
+  }
+  button.secondary:hover { background: #d2d2d7; }
+  button.danger {
+    background: #ff3b30;
+  }
+  .toolbar {
+    margin-bottom: 16px;
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  .toolbar button.active {
+    background: #1d1d1f;
+    color: white;
+  }
+  .reminders {
+    background: #fff8e1;
+    border-left: 4px solid #ff9500;
+    padding: 10px 14px;
+    border-radius: 6px;
+    margin-bottom: 16px;
+    font-size: 13px;
+  }
+  .reminders h3 {
+    font-size: 12px;
+    margin-bottom: 6px;
+    color: #b25000;
+  }
+  .reminders .item { padding: 2px 0; }
+  .task-list { list-style: none; }
+  .task {
+    background: white;
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .task.done {
+    opacity: 0.5;
+    text-decoration: line-through;
+  }
+  .task.prio-P0 { border-left: 4px solid #ff3b30; }
+  .task.prio-P1 { border-left: 4px solid #ff9500; }
+  .task.prio-P2 { border-left: 4px solid #34c759; }
+  .task.prio-P3 { border-left: 4px solid #8e8e93; }
+  .task .icon {
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  .task .body { flex: 1; min-width: 0; }
+  .task .title {
+    font-weight: 500;
+    margin-bottom: 4px;
+    font-size: 14px;
+  }
+  .task .meta {
+    font-size: 11px;
+    color: #6e6e73;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .task .meta .tag {
+    background: #f5f5f7;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  .task .meta .tag.danger {
+    background: #ffe5e3;
+    color: #c5260a;
+  }
+  .task .meta .tag.success {
+    background: #e0f7e7;
+    color: #1f7a35;
+  }
+  .task .actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .task .actions button {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+  .empty {
+    text-align: center;
+    padding: 40px;
+    color: #6e6e73;
+    font-size: 13px;
+  }
+  .toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #34c759;
+    color: white;
+    padding: 10px 16px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+    z-index: 1000;
+  }
+  .toast.show { opacity: 1; }
+  .toast.error { background: #ff3b30; }
+</style>
+</head>
+<body>
+<h1>
+  <span>📋 TaskPane 任务面板</span>
+  <span class="badge" id="count">0</span>
+</h1>
+
+<div class="toolbar">
+  <button class="active" data-filter="pending">待办</button>
+  <button data-filter="done">已完成</button>
+  <button data-filter="all">全部</button>
+  <button class="secondary" onclick="loadReminders()">⏰ 检查提醒</button>
+</div>
+
+<div id="reminders-section"></div>
+
+<h2 style="font-size:13px; margin-bottom:8px; color:#6e6e73;">📥 粘贴消息自动解析</h2>
+<textarea id="input-text" placeholder="把微信群/QQ 群里的任务消息复制粘贴到这里，点解析。例：&#10;@我 紧急！周三前提交Q3 财报分析，群里反馈给我"></textarea>
+<div style="margin-bottom:16px;">
+  <button onclick="parseText()">🤖 LLM 解析</button>
+  <button class="secondary" onclick="document.getElementById('input-text').value=''">清空</button>
+</div>
+
+<ul class="task-list" id="task-list"></ul>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let currentFilter = 'pending';
+
+async function fetchTasks() {
+  const r = await fetch(`/api/tasks?status=${currentFilter}`);
+  const tasks = await r.json();
+  render(tasks);
+  $('count').textContent = tasks.filter(t => t.status === 'pending').length;
+}
+
+async function loadReminders() {
+  const r = await fetch('/api/reminders');
+  const items = await r.json();
+  if (items.length === 0) {
+    $('reminders-section').innerHTML = '';
+    toast('当前无提醒');
+    return;
+  }
+  $('reminders-section').innerHTML = `
+    <div class="reminders">
+      <h3>⏰ 即将到期 (${items.length})</h3>
+      ${items.map(i => `<div class="item">· [${i.task.priority}] ${i.task.title} — ${i.msg}</div>`).join('')}
+    </div>
+  `;
+}
+
+function render(tasks) {
+  const list = $('task-list');
+  if (tasks.length === 0) {
+    list.innerHTML = '<div class="empty">🎉 当前没有任务</div>';
+    return;
+  }
+  list.innerHTML = tasks.map(t => {
+    const icon = t.auto_completable ? '🤖' : '👤';
+    const dl = t.deadline ? new Date(t.deadline).toLocaleString('zh-CN', {month:'numeric',day:'numeric',hour:'numeric',minute:'numeric'}) : '无截止';
+    const tags = [
+      `<span class="tag">📅 ${dl}</span>`,
+      t.assigned_to_me ? '<span class="tag">@我</span>' : '',
+      t.auto_completable ? '<span class="tag success">可自动</span>' : '<span class="tag danger">需介入</span>',
+    ].filter(Boolean).join(' ');
+    return `
+      <li class="task prio-${t.priority} ${t.status === 'done' ? 'done' : ''}">
+        <div class="icon">${icon}</div>
+        <div class="body">
+          <div class="title">${escapeHtml(t.title)}</div>
+          <div class="meta">${tags}</div>
+        </div>
+        <div class="actions">
+          ${t.status === 'pending'
+            ? `<button onclick="markDone(${t.id})">✓</button>
+               <button class="secondary" onclick="cancel(${t.id})">×</button>`
+            : ''}
+        </div>
+      </li>`;
+  }).join('');
+}
+
+function escapeHtml(s) {
+  return (s||'').replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function parseText() {
+  const text = $('input-text').value.trim();
+  if (!text) return toast('请先粘贴消息', true);
+  const r = await fetch('/api/parse', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({text})
+  });
+  const data = await r.json();
+  if (data.error) return toast(data.error, true);
+  if (!data.parsed.is_task) return toast('不是任务消息');
+  toast(`✓ 已添加: ${data.parsed.title}`);
+  $('input-text').value = '';
+  fetchTasks();
+}
+
+async function markDone(id) {
+  await fetch('/api/tasks', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({id, status: 'done'})
+  });
+  fetchTasks();
+}
+
+async function cancel(id) {
+  await fetch('/api/tasks', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({id, status: 'cancelled'})
+  });
+  fetchTasks();
+}
+
+function toast(msg, isError) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isError ? ' error' : '');
+  setTimeout(() => t.className = 'toast', 2000);
+}
+
+document.querySelectorAll('.toolbar button[data-filter]').forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll('.toolbar button[data-filter]').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    currentFilter = b.dataset.filter;
+    fetchTasks();
+  };
+});
+
+fetchTasks();
+loadReminders();
+setInterval(fetchTasks, 30000);
+setInterval(loadReminders, 60000);
+</script>
+</body>
+</html>
